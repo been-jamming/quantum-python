@@ -2,10 +2,15 @@ import pygame
 import math
 import cmath
 
-screen_resolution = (640, 480)
+screen_resolution = (640*2, 480*2)
 resolution = 100
 
+time_step = 0.025/60
+ticks_per_frame = 40
+total_captured = 0.0
+capture_rate = 1.0
 pygame.init()
+clock = pygame.time.Clock()
 window = pygame.display.set_mode(screen_resolution)
 
 def get_color(value):
@@ -39,9 +44,9 @@ def get_color(value):
 
 def render(state):
     max_abs = 0.5
-    for n in range(resolution):
-        if abs(state[n]) >= max_abs:
-            max_abs = abs(state[n])
+    #for n in range(resolution):
+    #    if abs(state[n]) >= max_abs:
+    #        max_abs = abs(state[n])
     prev_x = 0
     for n in range(resolution):
         color = get_color(state[n])
@@ -57,11 +62,11 @@ def norm_state(state):
     norm = math.sqrt(norm_squared)
     return norm
 
-def normalize_state(state):
+def normalize_state(state, captured):
     norm = norm_state(state)
 
     for n in range(resolution):
-        state[n] /= norm
+        state[n] /= norm/(1.0 - captured)
 
     return state
 
@@ -79,15 +84,17 @@ def get_second_derivative(state, x):
     result = c - 2.0*b + a
     return result
 
-
-state = [cmath.exp(complex(0.0, n*20.0*2.0*math.pi/resolution))/(math.exp(((n - resolution/2.0)/5.0)**2.0)) for n in range(resolution)]
-state = normalize_state(state)
+state = [cmath.exp(complex(0.0, -n*15.0*2.0*math.pi/resolution))/(math.exp(((n - resolution/2.0)/5.0)**2.0)) for n in range(resolution)]
+state = normalize_state(state, 0.0)
 
 def simulate(state, dt):
     next_state = [0 for n in range(resolution)]
     for x in range(resolution):
         second_derivative = get_second_derivative(state, x)
         next_state[x] = state[x] + complex(0, -1)*second_derivative*dt
+    next_norm = abs(next_state[2]) + 1.0*abs(next_state[1])
+    next_phase = cmath.phase(next_state[1]) - 2.0*cmath.phase(next_state[2])
+    #next_state[0] = next_norm*cmath.exp(complex(0.0, next_phase))
     return next_state
 
 running = True
@@ -99,7 +106,13 @@ while running:
     window.fill((0, 0, 0))
     render(state)
     pygame.display.update()
-    state = normalize_state(simulate(state, 0.005))
+    dt = clock.tick(60)
+    captured = total_captured
+    for i in range(ticks_per_frame):
+        state = simulate(state, time_step*dt)
+        state = normalize_state(state, captured)
+    total_captured += capture_rate*ticks_per_frame*float(dt)/1000.0*abs(state[0])**2
+    print(total_captured)
 
 pygame.quit()
 
